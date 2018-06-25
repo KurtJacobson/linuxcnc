@@ -621,6 +621,8 @@ int do_newsig_cmd(char *name, char *type)
 	retval = hal_signal_new(name, HAL_U32);
     } else if (strcasecmp(type, "s32") == 0) {
 	retval = hal_signal_new(name, HAL_S32);
+    } else if (strcasecmp(type, "port") == 0) {
+	retval = hal_signal_new(name, HAL_PORT);
     } else {
 	halcmd_error("Unknown signal type '%s'\n", type);
 	retval = -EINVAL;
@@ -637,6 +639,7 @@ static int set_common(hal_type_t type, void *d_ptr, char *value) {
     double fval;
     long lval;
     unsigned long ulval;
+    unsigned uval;
     char *cp = value;
 
     switch (type) {
@@ -681,6 +684,20 @@ static int set_common(hal_type_t type, void *d_ptr, char *value) {
 	    *((hal_u32_t *) (d_ptr)) = ulval;
 	}
 	break;
+    case HAL_PORT:
+        uval = strtoul(value, &cp, 0);
+        if ((*cp != '\0') && (!isspace(*cp))) {
+            halcmd_error("value '%s' invalid for PORT\n", value);
+            retval = -EINVAL;
+        } else {
+            if(*((hal_port_t*)d_ptr) != 0) {
+                halcmd_error("port is already allocated with %u bytes.\n", hal_port_buffer_size(*((hal_port_t*)d_ptr)));
+                retval = -EINVAL;
+        } else {
+            *((hal_port_t*) (d_ptr)) = hal_port_alloc(uval);
+        }
+    }
+    break;
     default:
 	/* Shouldn't get here, but just in case... */
 	halcmd_error("bad type %d\n", type);
@@ -849,8 +866,8 @@ int do_sets_cmd(char *name, char *value)
 	halcmd_error("signal '%s' not found\n", name);
 	return -EINVAL;
     }
-    /* found it - does it have a writer? */
-    if (sig->writers > 0) {
+    /* found it - it have a writer? if it is a port we can set its buffer size */
+    if ((sig->type != HAL_PORT) && (sig->writers > 0)) {
 	rtapi_mutex_give(&(hal_data->mutex));
 	halcmd_error("signal '%s' already has writer(s)\n", name);
 	return -EINVAL;
@@ -935,6 +952,7 @@ static int get_type(char ***patterns) {
     if(strcmp(typestr, "u32") == 0) return HAL_U32;
     if(strcmp(typestr, "signed") == 0) return HAL_S32;
     if(strcmp(typestr, "unsigned") == 0) return HAL_U32;
+    if(strcmp(typestr, "port") == 0) return HAL_PORT;
     return -1;
 }
 
@@ -2179,6 +2197,9 @@ static const char *data_type(int type)
     case HAL_U32:
 	type_str = "u32  ";
 	break;
+    case HAL_PORT:
+	type_str = "port ";
+	break;
     default:
 	/* Shouldn't get here, but just in case... */
 	type_str = "undef";
@@ -2202,6 +2223,9 @@ static const char *data_type2(int type)
 	break;
     case HAL_U32:
 	type_str = "u32";
+	break;
+    case HAL_PORT:
+	type_str = "port";
 	break;
     default:
 	/* Shouldn't get here, but just in case... */
@@ -2321,6 +2345,10 @@ static char *data_value(int type, void *valptr)
 	snprintf(buf, 14, "  0x%08lX", (unsigned long)*((hal_u32_t *) valptr));
 	value_str = buf;
 	break;
+    case HAL_PORT:
+	snprintf(buf, 14, "  %10u", hal_port_buffer_size(*((hal_port_t*) valptr)));
+	value_str = buf;
+	break;
     default:
 	/* Shouldn't get here, but just in case... */
 	value_str = "   undef    ";
@@ -2354,6 +2382,11 @@ static char *data_value2(int type, void *valptr)
 	snprintf(buf, 14, "%ld", (unsigned long)*((hal_u32_t *) valptr));
 	value_str = buf;
 	break;
+    case HAL_PORT:
+	snprintf(buf, 14, "%u", hal_port_buffer_size(*((hal_port_t*) valptr)));
+	value_str = buf;
+	break;
+
     default:
 	/* Shouldn't get here, but just in case... */
 	value_str = "unknown_type";
@@ -2947,6 +2980,7 @@ static void print_help_commands(void)
     printf("  net                 Link a number of pins to a signal\n");
     printf("  unlinkp             Unlink pin\n");
     printf("  newsig, delsig      Create/delete a signal\n");
+    printf("  portsize            Get/Set the buffer size of a port signal\n");
     printf("  getp, gets          Get the value of a pin, parameter or signal\n");
     printf("  ptype, stype        Get the type of a pin, parameter or signal\n");
     printf("  setp, sets          Set the value of a pin, parameter or signal\n");

@@ -30,7 +30,7 @@ parser Hal:
     token END: ";;"
     token PARAMDIRECTION: "rw|r"
     token PINDIRECTION: "in|out|io"
-    token TYPE: "float|bit|signed|unsigned|u32|s32"
+    token TYPE: "float|bit|signed|unsigned|u32|s32|port"
     token NAME: "[a-zA-Z_][a-zA-Z0-9_]*"
     token STARREDNAME: "[*]*[a-zA-Z_][a-zA-Z0-9_]*"
     token HALNAME: "[#a-zA-Z_][-#a-zA-Z0-9_.]*"
@@ -321,24 +321,24 @@ static int comp_id;
     for name, type, array, dir, value, personality in pins:
         if array:
             if isinstance(array, tuple): array = array[0]
-            print("    hal_%s_t *%s[%s];" % (type, to_c(name), array), file=f)
+            print("    hal_%s_t *%s_pin[%s];" % (type, to_c(name), array), file=f)
         else:
-            print("    hal_%s_t *%s;" % (type, to_c(name)), file=f)
+            print("    hal_%s_t *%s_pin;" % (type, to_c(name)), file=f)
         names[name] = 1
 
     for name, type, array, dir, value, personality in params:
         if array:
             if isinstance(array, tuple): array = array[0]
-            print("    hal_%s_t %s[%s];" % (type, to_c(name), array), file=f)
+            print("    hal_%s_t %s_par[%s];" % (type, to_c(name), array), file=f)
         else:
-            print("    hal_%s_t %s;" % (type, to_c(name)), file=f)
+            print("    hal_%s_t %s_par;" % (type, to_c(name)), file=f)
         names[name] = 1
 
     for type, name, array, value in variables:
         if array:
-            print("    %s %s[%d];\n" % (type, name, array), file=f)
+            print("    %s %s_var[%d];\n" % (type, name, array), file=f)
         else:
-            print("    %s %s;\n" % (type, name), file=f)
+            print("    %s %s_var;\n" % (type, name), file=f)
     if has_data:
         print("    void *_data;", file=f)
 
@@ -401,20 +401,20 @@ static int comp_id;
         if array:
             if isinstance(array, tuple): array = array[1]
             print("    for(j=0; j < (%s); j++) {" % array, file=f)
-            print("        r = hal_pin_%s_newf(%s, &(inst->%s[j]), comp_id," % (
+            print("        r = hal_pin_%s_newf(%s, &(inst->%s_pin[j]), comp_id," % (
                 type, dirmap[dir], to_c(name)), file=f)
             print("            \"%%s%s\", prefix, j);" % to_hal("." + name), file=f)
             print("        if(r != 0) return r;", file=f)
             if value is not None:
-                print("    *(inst->%s[j]) = %s;" % (to_c(name), value), file=f)
+                print("    *(inst->%s_pin[j]) = %s;" % (to_c(name), value), file=f)
             print("    }", file=f)
         else:
-            print("    r = hal_pin_%s_newf(%s, &(inst->%s), comp_id," % (
+            print("    r = hal_pin_%s_newf(%s, &(inst->%s_pin), comp_id," % (
                 type, dirmap[dir], to_c(name)), file=f)
             print("        \"%%s%s\", prefix);" % to_hal("." + name), file=f)
             print("    if(r != 0) return r;", file=f)
             if value is not None:
-                print("    *(inst->%s) = %s;" % (to_c(name), value), file=f)
+                print("    *(inst->%s_pin) = %s;" % (to_c(name), value), file=f)
         if personality:
             print("}", file=f)
 
@@ -424,19 +424,19 @@ static int comp_id;
         if array:
             if isinstance(array, tuple): array = array[1]
             print("    for(j=0; j < %s; j++) {" % array, file=f)
-            print("        r = hal_param_%s_newf(%s, &(inst->%s[j]), comp_id," % (
+            print("        r = hal_param_%s_newf(%s, &(inst->%s_par[j]), comp_id," % (
                 type, dirmap[dir], to_c(name)), file=f)
             print("            \"%%s%s\", prefix, j);" % to_hal("." + name), file=f)
             print("        if(r != 0) return r;", file=f)
             if value is not None:
-                print("    inst->%s[j] = %s;" % (to_c(name), value), file=f)
+                print("    inst->%s_par[j] = %s;" % (to_c(name), value), file=f)
             print("    }", file=f)
         else:
-            print("    r = hal_param_%s_newf(%s, &(inst->%s), comp_id," % (
+            print("    r = hal_param_%s_newf(%s, &(inst->%s_par), comp_id," % (
                 type, dirmap[dir], to_c(name)), file=f)
             print("        \"%%s%s\", prefix);" % to_hal("." + name), file=f)
             if value is not None:
-                print("    inst->%s = %s;" % (to_c(name), value), file=f)
+                print("    inst->%s_par = %s;" % (to_c(name), value), file=f)
             print("    if(r != 0) return r;", file=f)
         if personality:
             print("}", file=f)
@@ -445,10 +445,10 @@ static int comp_id;
         if value is None: continue
         if array:
             print("    for(j=0; j < %s; j++) {" % array, file=f)
-            print("        inst->%s[j] = %s;" % (name, value), file=f)
+            print("        inst->%s_var[j] = %s;" % (name, value), file=f)
             print("    }", file=f)
         else:
-            print("    inst->%s = %s;" % (name, value), file=f)
+            print("    inst->%s_var = %s;" % (name, value), file=f)
 
     for name, fp in functions:
         print("    rtapi_snprintf(buf, sizeof(buf), \"%%s%s\", prefix);"\
@@ -647,27 +647,25 @@ int __comp_parse_names(int *argc, char **argv) {
         print("#define fperiod (period * 1e-9)", file=f)
         for name, type, array, dir, value, personality in pins:
             print("#undef %s" % to_c(name), file=f)
+            print("#undef %s_ptr" % to_c(name), file=f)
             if array:
-                if dir == 'in':
-                    print("#define %s(i) (0+*(__comp_inst->%s[i]))" % (to_c(name), to_c(name)), file=f)
-                else:
-                    print("#define %s(i) (*(__comp_inst->%s[i]))" % (to_c(name), to_c(name)), file=f)
+                print("#define %s(i) (%s*(__comp_inst->%s_pin[i]))" % (to_c(name), "0+" if(dir == 'in') else "", to_c(name)), file=f)
+                print("#define %s_ptr(i) (__comp_inst->%s_pin[i])" % (to_c(name), to_c(name)), file=f)
+
             else:
-                if dir == 'in':
-                    print("#define %s (0+*__comp_inst->%s)" % (to_c(name), to_c(name)), file=f)
-                else:
-                    print("#define %s (*__comp_inst->%s)" % (to_c(name), to_c(name)), file=f)
+                print("#define %s (%s*(__comp_inst->%s_pin))" % (to_c(name), "0+" if(dir == 'in') else "", to_c(name)), file=f)
+                print("#define %s_ptr (__comp_inst->%s_pin)" % (to_c(name), to_c(name)), file=f)
         for name, type, array, dir, value, personality in params:
             print("#undef %s" % to_c(name), file=f)
             if array:
-                print("#define %s(i) (__comp_inst->%s[i])" % (to_c(name), to_c(name)), file=f)
+                print("#define %s(i) (__comp_inst->%s_par[i])" % (to_c(name), to_c(name)), file=f)
             else:
-                print("#define %s (__comp_inst->%s)" % (to_c(name), to_c(name)), file=f)
+                print("#define %s (__comp_inst->%s_par)" % (to_c(name), to_c(name)), file=f)
 
         for type, name, array, value in variables:
             name = name.replace("*", "")
             print("#undef %s" % name, file=f)
-            print("#define %s (__comp_inst->%s)" % (name, name), file=f)
+            print("#define %s (__comp_inst->%s_var)" % (name, name), file=f)
 
         if has_data:
             print("#undef data", file=f)

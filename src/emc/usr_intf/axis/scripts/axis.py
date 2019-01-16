@@ -1295,6 +1295,12 @@ widgets = nf.Widgets(root_window,
     ("joint_7", Radiobutton, tabs_manual + ".joints.joint7"),
     ("joint_8", Radiobutton, tabs_manual + ".joints.joint8"),
     ("joint_9", Radiobutton, tabs_manual + ".joints.joint9"),
+    ("joint_10", Radiobutton, tabs_manual + ".joints.joint10"),
+    ("joint_11", Radiobutton, tabs_manual + ".joints.joint11"),
+    ("joint_12", Radiobutton, tabs_manual + ".joints.joint12"),
+    ("joint_13", Radiobutton, tabs_manual + ".joints.joint13"),
+    ("joint_14", Radiobutton, tabs_manual + ".joints.joint14"),
+    ("joint_15", Radiobutton, tabs_manual + ".joints.joint15"),
 
     ("jogincr", Entry, tabs_manual + ".jogf.jog.jogincr"),
     ("override", Checkbutton, tabs_manual + ".jogf.override"),
@@ -1838,9 +1844,13 @@ def ja_from_rbutton():
         axes = "xzabcuvw"
     else:       
         axes = "xyzabcuvw"
-    if ja in "012345678":
-        a = int(ja) # number specifies a joint
-    else:    
+
+    try: # ja may be a joint number or an axis coordinate letter
+        a = int(ja) # invalid for types: 'str' or 'unicode'
+        if a not in range(linuxcnc.MAX_JOINTS):
+            print "ja_from_rbutton:Unexpected joint number",a
+            return "" # can not continue
+    except ValueError:
         a = axes.index(ja) # letter specifies an axis coordinate
 
     # handle joint jogging for known identity kins

@@ -49,7 +49,9 @@ RTAPI_MP_LONG(traj_period_nsec, "trajectory planner period (nsecs)");
 static int num_spindles = 1; /* default number of spindles is 1 */
 RTAPI_MP_INT (num_spindles, "number of spindles");
 static int num_joints = EMCMOT_MAX_JOINTS;	/* default number of joints present */
-RTAPI_MP_INT(num_joints, "number of joints");
+RTAPI_MP_INT(num_joints, "number of joints used in kinematics");
+static int num_extrajoints = 0;	/* default number of extra joints present */
+RTAPI_MP_INT(num_extrajoints, "number of extra joints (not used in kinematics)");
 static int num_dio = DEFAULT_DIO;	/* default number of motion synched DIO */
 RTAPI_MP_INT(num_dio, "number of digital inputs/outputs");
 static int num_aio = DEFAULT_AIO;	/* default number of motion synched AIO */
@@ -116,7 +118,8 @@ static int mot_comp_id;	/* component ID for motion module */
 static int init_hal_io(void);
 
 /* functions called by init_hal_io() */
-static int export_joint(int num, joint_hal_t * addr);
+static int export_joint(int num,           joint_hal_t * addr);
+static int export_extrajoint(int num, extrajoint_hal_t * addr);
 static int export_axis(char c, axis_hal_t  * addr);
 static int export_spindle(int num, spindle_hal_t * addr);
 
@@ -216,6 +219,23 @@ int rtapi_app_main(void)
 	return -1;
     }
 
+    if (( num_extrajoints < 0 ) || ( num_extrajoints > num_joints )) {
+	rtapi_print_msg(RTAPI_MSG_ERR,
+	    _("\nMOTION: num_extrajoints is %d, must be between 0 and %d\n\n"), num_extrajoints, num_joints);
+	hal_exit(mot_comp_id);
+	return -1;
+    }
+    if ( (num_extrajoints > 0) && (kinematicsType() != KINEMATICS_BOTH) ) {
+	rtapi_print_msg(RTAPI_MSG_ERR, _("\nMOTION: nonzero num_extrajoints requires KINEMATICS_BOTH\n\n"));
+        return -1;
+    }
+    if (num_extrajoints > 0) {
+	rtapi_print_msg(RTAPI_MSG_ERR,
+            _("\nMOTION: kinematicjoints=%2d\n            extrajoints=%2d\n           Total joints=%2d\n\n"),
+            num_joints-num_extrajoints, num_extrajoints, num_joints
+            );
+    }
+
     if (( num_spindles < 0 ) || ( num_spindles > EMCMOT_MAX_SPINDLES )) {
 	rtapi_print_msg(RTAPI_MSG_ERR,
 	    _("MOTION: num_spindles is %d, must be between 0 and %d\n"), num_spindles, EMCMOT_MAX_SPINDLES);
@@ -308,8 +328,9 @@ void rtapi_app_exit(void)
 static int init_hal_io(void)
 {
     int n, retval;
-    joint_hal_t *joint_data;
-    axis_hal_t  *axis_data;
+    joint_hal_t      *joint_data;
+    extrajoint_hal_t *ejoint_data;
+    axis_hal_t       *axis_data;
 
     rtapi_print_msg(RTAPI_MSG_INFO, "MOTION: init_hal_io() starting...\n");
 
@@ -451,7 +472,6 @@ static int init_hal_io(void)
 
     /* export joint pins and parameters */
     for (n = 0; n < num_joints; n++) {
-	/* point to axis data */
 	joint_data = &(emcmot_hal_data->joint[n]);
 	/* export all vars */
         retval = export_joint(n, joint_data);
@@ -464,6 +484,16 @@ static int init_hal_io(void)
 	*(joint_data->home_state) = 0;
 	/* We'll init the index model to EXT_ENCODER_INDEX_MODEL_RAW for now,
 	   because it is always supported. */
+    }
+
+    /* export joint pins and parameters */
+    for (n = 0; n < num_extrajoints; n++) {
+        ejoint_data = &(emcmot_hal_data->ejoint[n]);
+        retval = export_extrajoint(n + num_joints - num_extrajoints,ejoint_data);
+        if (retval != 0) {
+            rtapi_print_msg(RTAPI_MSG_ERR, _("MOTION: ejoint %d pin/param export failed\n"), n);
+            return -1;
+        }
     }
 
     /* export axis pins and parameters */
@@ -623,6 +653,15 @@ static int export_joint(int num, joint_hal_t * addr)
     return 0;
 }
 
+static int export_extrajoint(int num, extrajoint_hal_t * addr)
+{
+    int retval;
+    /* export extrajoint pins */
+    if ((retval = hal_pin_float_newf(HAL_IN,  &(addr->posthome_cmd),  mot_comp_id,
+                                            "joint.%d.posthome-cmd",  num)) != 0) return retval;
+    return 0;
+}
+
 static int export_axis(char c, axis_hal_t * addr)
 {
     int retval, msg;
@@ -710,7 +749,10 @@ static int init_comm_buffers(void)
     SET_MOTION_TELEOP_FLAG(0);
     emcmotDebug->split = 0;
     emcmotStatus->heartbeat = 0;
-    emcmotConfig->numJoints = num_joints;
+
+    emcmotConfig->numJoints      = num_joints;      // typ: [KINS]JOINTS
+    emcmotConfig->numExtraJoints = num_extrajoints; // typ: motmod num_extrajoints=
+
     emcmotConfig->numSpindles = num_spindles;
     emcmotConfig->numDIO = num_dio;
     emcmotConfig->numAIO = num_aio;

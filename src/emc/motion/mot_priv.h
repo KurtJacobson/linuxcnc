@@ -1,4 +1,4 @@
-/********************************************************************
+/*******************************************************************
 * Description: mot_priv.h
 *   Macros and declarations local to the realtime sources.
 *
@@ -123,6 +123,10 @@ typedef struct {
 } joint_hal_t;
 
 typedef struct {
+    hal_float_t *posthome_cmd; //  IN pin extrajoint
+} extrajoint_hal_t;
+
+typedef struct {
     hal_float_t *pos_cmd;        /* RPI: commanded position */
     hal_float_t *teleop_vel_cmd; /* RPI: commanded velocity */
     hal_float_t *teleop_pos_cmd; /* RPI: teleop traj planner pos cmd */
@@ -205,6 +209,7 @@ typedef struct {
 
     spindle_hal_t spindle[EMCMOT_MAX_SPINDLES];     /*spindle data */
     joint_hal_t joint[EMCMOT_MAX_JOINTS];	/* data for each joint */
+    extrajoint_hal_t ejoint[EMCMOT_MAX_EXTRAJOINTS]; /* data for each extrajoint */
     axis_hal_t axis[EMCMOT_MAX_AXIS];	        /* data for each axis */
 
     hal_bit_t   *eoffset_active; /* ext offsets active */

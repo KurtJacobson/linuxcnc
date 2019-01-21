@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# M144 demo for extrajoints demo[12].ini
+# Usage: M144 [Pvalue]
+# if Pvalue omitted, use value=0
+# dont use value==-1 (sigh)
+
+p=$1
+if [ "X$p" == "X" ]        ; then p=0 ; fi
+if [ "$p" = "-1.000000"  ] ; then p=0 ; fi
+echo "$0: <$*> use p=$p"
+halcmd setp j4.limit3.in $p
+exit 0

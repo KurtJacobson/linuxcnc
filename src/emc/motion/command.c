@@ -629,7 +629,10 @@ void emcmotCommandHandler(void *arg, long period)
 
 	case EMCMOT_SET_NUM_JOINTS:
 	    /* set the global NUM_JOINTS, which must be between 1 and
-	       EMCMOT_MAX_JOINTS, inclusive */
+	       EMCMOT_MAX_JOINTS, inclusive
+	       called  by task using [KINS]JOINTS= which is typcally
+	       the same value as the motmod num_joints= parameter
+	    */
 	    rtapi_print_msg(RTAPI_MSG_DBG, "SET_NUM_JOINTS");
 	    rtapi_print_msg(RTAPI_MSG_DBG, " %d", emcmotCommand->joint);
 	    if (( emcmotCommand->joint <= 0 ) ||

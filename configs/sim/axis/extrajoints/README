@@ -1,0 +1,7 @@
+extrajoints demos
+
+demo1 - immediate homing
+        (jog joint4 before homing to)
+        (create a motor offset      )
+
+demo2 - simulated home switches
